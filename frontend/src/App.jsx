@@ -52,45 +52,52 @@ const products = [
 ];
 
 function App() {
-
-    function isDisponible(disponible){
-        if(disponible > 1){
-            return <p>{disponible} disponibles</p>
-        } else if (disponible == 1){
-            return <p>Solo {disponible}</p>
-        } else {
-            return <p>No disponible</p>
-        }
+  
+  function isDisponible(disponible) {
+    const unidadesDisponibles = () => {
+      
+      if (unidadesDisponibles > 1) {
+        return <p>{unidadesDisponibles} disponibles</p>;
+      } else if (unidadesDisponibles === 1) {
+        return <p>Solo {unidadesDisponibles}</p>;
+      } else {
+        return <p>No disponible</p>;
+      }
     }
 
+  }
+
   return (
-    <div className="app-shell">
-      <header className="hero">
-        <div className="hero__content">
-          <h1 className="hero__title">Mini E-Commerce</h1>
+    <div className="app-contenedor">
+      <header className="encabezado">
+        <div className="encabezado__contenido encabezado__contenido--dividido">
+          <h1 className="encabezado__titulo">Mini E-Commerce</h1>
+
+          <section
+            className="buscador buscador--encabezado"
+            aria-label="Buscador de productos"
+          >
+            <label htmlFor="busqueda" className="buscador__etiqueta">
+              Buscar producto
+            </label>
+            <div className="buscador__controles">
+              <input
+                id="busqueda"
+                name="busqueda"
+                type="text"
+                placeholder="Mochila, reloj, camisa..."
+              />
+              <button type="button">Buscar</button>
+            </div>
+          </section>
         </div>
       </header>
 
-      <main className="layout">
-        <section className="search-panel" aria-label="Buscador de productos">
-          <label htmlFor="search" className="search-panel__label">
-            Buscar producto
-          </label>
-          <div className="search-panel__controls">
-            <input
-              id="search"
-              name="search"
-              type="text"
-              placeholder="Mochila, reloj, camisa..."
-            />
-            <button type="button">Buscar</button>
-          </div>
-        </section>
-
-        <section className="catalog" aria-label="Productos disponibles">
-          <div className="catalog__topbar">
+      <main className="distribucion">
+        <section className="catalogo" aria-label="Productos disponibles">
+          <div className="catalogo__barra-superior">
             <h2>Productos Disponibles</h2>
-            <div className="catalog__chips">
+            <div className="catalogo__filtros">
               <span>Todos</span>
               <span>Ropa</span>
               <span>Accesorios</span>
@@ -98,17 +105,19 @@ function App() {
             </div>
           </div>
 
-          <div className="catalog__grid">
+          <div className="catalogo__cuadricula">
             {products.map((product) => (
-              <article key={product.id} className="product-card">
-                <div className="product-card__media" aria-hidden="true">
+              <article key={product.id} className="tarjeta-producto">
+                <div className="tarjeta-producto__media" aria-hidden="true">
                   {product.category}
                 </div>
-                <div className="product-card__content">
-                  <span className="product-card__tag">{product.tag}</span>
+                <div className="tarjeta-producto__contenido">
+                  <span className="tarjeta-producto__etiqueta">{product.tag}</span>
                   <h3>{product.name}</h3>
-                  <p className="product-card__meta">{ isDisponible(product.stock) }</p>
-                  <div className="product-card__footer">
+                  <p className="tarjeta-producto__estado">
+                    {isDisponible(product.stock)}
+                  </p>
+                  <div className="tarjeta-producto__pie">
                     <strong>{product.price}</strong>
                     <button type="button">Ver detalle</button>
                   </div>
@@ -117,7 +126,6 @@ function App() {
             ))}
           </div>
         </section>
-
       </main>
     </div>
   );
