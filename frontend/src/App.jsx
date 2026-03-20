@@ -260,11 +260,7 @@ function App() {
         <header className="encabezado">
           <div className="encabezado__contenido encabezado__contenido--dividido">
             <div>
-              <p className="encabezado__ceja">Sprint 2 · HU-02 y HU-04</p>
               <h1 className="encabezado__titulo">Mini E-Commerce</h1>
-              <p className="encabezado__subtitulo">
-                Consulta de detalle de producto y gestión del carrito con modificación y eliminación de artículos.
-              </p>
             </div>
 
             <section className="buscador buscador--encabezado" aria-label="Buscador de productos">
@@ -282,11 +278,6 @@ function App() {
                 />
                 <button type="button">Buscar</button>
               </div>
-              <p className="buscador__ayuda">
-                {usesFallback
-                    ? "Modo local activo. Puedes seguir probando la interfaz mientras conectan el backend."
-                    : "Conectado al backend Spring Boot + MySQL."}
-              </p>
             </section>
           </div>
         </header>
@@ -297,9 +288,6 @@ function App() {
               <h2>Productos Disponibles</h2>
               <div className="catalogo__filtros">
                 <span>{filteredProducts.length} resultados</span>
-                <span>React</span>
-                <span>Spring Boot</span>
-                <span>MySQL</span>
               </div>
             </div>
 

@@ -96,7 +96,7 @@ input {
 .boton-principal,
 .tarjeta-producto__pie button,
 .carrito__acciones button {
-  border-radius: 12px;
+  border-radius: 25px;
 }
 
 .buscador input {
