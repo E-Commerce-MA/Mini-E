@@ -90,6 +90,11 @@ public class CartService {
         }
     }
 
+    @Transactional
+    public void clearCart() {
+        cartItemRepository.deleteAll();
+    }
+
     private CartItemResponse toResponse(CartItem item) {
         Product product = item.getProduct();
         BigDecimal subtotal = product.getPrice().multiply(BigDecimal.valueOf(item.getQuantity()));
@@ -102,7 +107,6 @@ public class CartService {
                 product.getPrice(),
                 product.getStock(),
                 item.getQuantity(),
-                subtotal
-        );
+                subtotal);
     }
 }
