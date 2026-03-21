@@ -1,5 +1,7 @@
 package com.ecommerce.backend.config;
 
+import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
@@ -8,13 +10,21 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class CorsConfig {
 
+    private final List<String> allowedOrigins;
+
+    public CorsConfig(
+            @Value("${app.cors.allowed-origins:http://localhost:5173,http://127.0.0.1:5173}")
+            List<String> allowedOrigins) {
+        this.allowedOrigins = allowedOrigins;
+    }
+
     @Bean
     public WebMvcConfigurer corsConfigurer() {
         return new WebMvcConfigurer() {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/api/**")
-                        .allowedOrigins("http://localhost:5173")
+                        .allowedOrigins(allowedOrigins.toArray(String[]::new))
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                         .allowedHeaders("*");
             }

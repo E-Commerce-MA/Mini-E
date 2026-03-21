@@ -1,7 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import "./App.css";
 
-const API_URL = "http://localhost:8080/api";
+const configuredApiUrl = (import.meta.env.VITE_API_URL ?? "").trim().replace(/\/+$/, "");
+const API_URL = configuredApiUrl
+  ? configuredApiUrl.endsWith("/api")
+    ? configuredApiUrl
+    : `${configuredApiUrl}/api`
+  : "/api";
 
 const fallbackProducts = [
   {
@@ -117,12 +122,42 @@ function App() {
   const [usesFallback, setUsesFallback] = useState(false);
   const [message, setMessage] = useState("");
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [loadingCheckout, setLoadingCheckout] = useState(false);
+  const [lastOrder, setLastOrder] = useState(null);
+  const [orderHistory, setOrderHistory] = useState([]);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isOrdersOpen, setIsOrdersOpen] = useState(false);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
 
   useEffect(() => {
-    loadInitialData();
+    function onKeyDown(event) {
+      if (event.key === "Escape") {
+        setIsCartOpen(false);
+        setIsOrdersOpen(false);
+        setIsDetailOpen(false);
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
   }, []);
 
-  async function loadInitialData() {
+  const refreshOrderHistory = useCallback(async () => {
+    const response = await fetch(`${API_URL}/orders`);
+    if (!response.ok) {
+      throw await buildApiError(response, "No fue posible cargar las compras.");
+    }
+
+    const ordersData = await response.json();
+    const normalizedOrders = (ordersData ?? []).map(normalizeOrder);
+    setOrderHistory(normalizedOrders);
+    setLastOrder(normalizedOrders[0] ?? null);
+    return normalizedOrders;
+  }, []);
+
+  const loadInitialData = useCallback(async () => {
     try {
       const [productsResponse, cartResponse] = await Promise.all([
         fetch(`${API_URL}/products`),
@@ -139,15 +174,28 @@ function App() {
       setProducts(productsData);
       setSelectedProduct(productsData[0] ?? null);
       setCart(normalizeCart(cartData));
+      try {
+        await refreshOrderHistory();
+      } catch {
+        setOrderHistory([]);
+        setLastOrder(null);
+      }
       setUsesFallback(false);
-    } catch (error) {
+      setMessage("");
+    } catch {
       setProducts(fallbackProducts);
       setSelectedProduct(fallbackProducts[0]);
       setCart(normalizeCart(fallbackCart));
+      setLastOrder(null);
+      setOrderHistory([]);
       setUsesFallback(true);
       setMessage("Se activó el modo local de prueba porque el backend no respondió.");
     }
-  }
+  }, [refreshOrderHistory]);
+
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
 
   const filteredProducts = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -171,15 +219,17 @@ function App() {
       } else {
         const response = await fetch(`${API_URL}/products/${productId}`);
         if (!response.ok) {
-          throw new Error("No fue posible consultar el detalle del producto.");
+          throw await buildApiError(response, "No fue posible consultar el detalle del producto.");
         }
         const productData = await response.json();
         setSelectedProduct(productData);
       }
+      setIsDetailOpen(true);
       setMessage("");
-    } catch (error) {
+    } catch {
       const localProduct = products.find((product) => product.id === productId);
       setSelectedProduct(localProduct ?? null);
+      setIsDetailOpen(Boolean(localProduct));
       setMessage("Se mostró el detalle local porque hubo un problema con la consulta.");
     } finally {
       setLoadingDetail(false);
@@ -196,11 +246,13 @@ function App() {
           method: "POST",
         });
         if (!response.ok) {
-          throw new Error("No fue posible agregar el producto al carrito.");
+          throw await buildApiError(response, "No fue posible agregar el producto al carrito.");
         }
         const data = await response.json();
         setCart(normalizeCart(data));
       }
+      setIsDetailOpen(false);
+      setIsCartOpen(true);
       setMessage("Producto agregado al carrito.");
     } catch (error) {
       setMessage(error.message);
@@ -221,7 +273,7 @@ function App() {
         });
 
         if (!response.ok) {
-          throw new Error("No fue posible actualizar la cantidad.");
+          throw await buildApiError(response, "No fue posible actualizar la cantidad.");
         }
 
         const data = await response.json();
@@ -243,7 +295,7 @@ function App() {
         });
 
         if (!response.ok) {
-          throw new Error("No fue posible eliminar el producto del carrito.");
+          throw await buildApiError(response, "No fue posible eliminar el producto del carrito.");
         }
 
         const data = await response.json();
@@ -255,34 +307,132 @@ function App() {
     }
   }
 
+  async function handleCheckout() {
+    if (cart.items.length === 0) {
+      setMessage("Agrega al menos un producto antes de confirmar la compra.");
+      return;
+    }
+
+    setLoadingCheckout(true);
+
+    try {
+      if (usesFallback) {
+        const fallbackOrder = buildLocalOrderFromCart(cart);
+        setLastOrder(fallbackOrder);
+        setOrderHistory((current) => [fallbackOrder, ...current]);
+        setCart({ items: [], total: 0, totalItems: 0 });
+      } else {
+        const checkoutResponse = await fetch(`${API_URL}/orders/checkout`, {
+          method: "POST",
+        });
+
+        if (!checkoutResponse.ok) {
+          throw await buildApiError(checkoutResponse, "No fue posible confirmar la compra.");
+        }
+
+        const checkoutOrder = normalizeOrder(await checkoutResponse.json());
+        let confirmedOrder = checkoutOrder;
+
+        const confirmedResponse = await fetch(`${API_URL}/orders/${checkoutOrder.id}`);
+        if (confirmedResponse.ok) {
+          confirmedOrder = normalizeOrder(await confirmedResponse.json());
+        }
+
+        const cartResponse = await fetch(`${API_URL}/cart`);
+        if (cartResponse.ok) {
+          setCart(normalizeCart(await cartResponse.json()));
+        } else {
+          setCart({ items: [], total: 0, totalItems: 0 });
+        }
+
+        setLastOrder(confirmedOrder);
+        try {
+          await refreshOrderHistory();
+        } catch {
+          setOrderHistory((current) => [confirmedOrder, ...current.filter((order) => order.id !== confirmedOrder.id)]);
+        }
+      }
+
+      setMessage("Compra confirmada. Orden generada y carrito limpiado.");
+      setIsCartOpen(true);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setLoadingCheckout(false);
+    }
+  }
+
   return (
       <div className="app-contenedor">
         <header className="encabezado">
           <div className="encabezado__contenido encabezado__contenido--dividido">
             <div>
               <h1 className="encabezado__titulo">Mini E-Commerce</h1>
+              <p className="encabezado__subtitulo">
+                Explora productos, agrega al carrito y confirma tu compra con registro de orden en base de datos.
+              </p>
             </div>
 
             <section className="buscador buscador--encabezado" aria-label="Buscador de productos">
               <label htmlFor="busqueda" className="buscador__etiqueta">
                 Buscar producto
               </label>
-              <div className="buscador__controles">
-                <input
-                    id="busqueda"
-                    name="busqueda"
-                    type="text"
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                    placeholder="Mochila, reloj, camisa..."
-                />
-                <button type="button">Buscar</button>
+              <div className="buscador__bloque">
+                <div className="buscador__controles">
+                  <input
+                      id="busqueda"
+                      name="busqueda"
+                      type="text"
+                      value={searchTerm}
+                      onChange={(event) => setSearchTerm(event.target.value)}
+                      placeholder="Mochila, reloj, camisa..."
+                  />
+                </div>
+
+                <div className="panel-acciones">
+                  <button
+                      type="button"
+                      className="boton-carrito"
+                      onClick={() => {
+                        setIsOrdersOpen(false);
+                        setIsCartOpen((current) => !current);
+                      }}
+                      aria-expanded={isCartOpen}
+                      aria-controls="panel-carrito"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M2.5 4h2l1.6 9.2a2 2 0 0 0 2 1.7h8.7a2 2 0 0 0 2-1.6L20.2 7H6.1" />
+                      <circle cx="9" cy="19" r="1.6" />
+                      <circle cx="17" cy="19" r="1.6" />
+                    </svg>
+                    <span>Carrito</span>
+                    <small>{cart.totalItems}</small>
+                  </button>
+
+                  <button
+                      type="button"
+                      className="boton-compras"
+                      onClick={() => {
+                        setIsCartOpen(false);
+                        setIsOrdersOpen((current) => !current);
+                      }}
+                      aria-expanded={isOrdersOpen}
+                      aria-controls="panel-compras"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M6 3h12a1 1 0 0 1 1 1v16l-3.5-2-3.5 2-3.5-2-3.5 2V4a1 1 0 0 1 1-1z" />
+                      <path d="M8.5 7.5h7M8.5 11h7M8.5 14.5h5" />
+                    </svg>
+                    <span>Compras</span>
+                    <small>{orderHistory.length}</small>
+                  </button>
+                </div>
               </div>
             </section>
           </div>
         </header>
 
-        <main className="distribucion distribucion--tres-columnas">
+        <main className="distribucion distribucion--una-columna">
           <section className="catalogo" aria-label="Productos disponibles">
             <div className="catalogo__barra-superior">
               <h2>Productos Disponibles</h2>
@@ -313,101 +463,235 @@ function App() {
               ))}
             </div>
           </section>
+        </main>
 
-          <aside className="vista-previa" aria-label="Detalle del producto">
-            <div className="vista-previa__encabezado">
-              <h2>Detalle del producto</h2>
+        {isDetailOpen && (
+            <button
+                type="button"
+                className="detalle-fondo"
+                aria-label="Cerrar detalle"
+                onClick={() => setIsDetailOpen(false)}
+            />
+        )}
+
+        <aside
+            className={`vista-previa detalle-panel ${isDetailOpen ? "detalle-panel--abierto" : ""}`}
+            aria-label="Detalle del producto"
+        >
+          <div className="vista-previa__encabezado">
+            <h2>Detalle del producto</h2>
+            <div className="vista-previa__acciones">
               {loadingDetail && <span className="estado-carga">Consultando...</span>}
+              <button
+                  type="button"
+                  className="boton-cerrar-panel"
+                  onClick={() => setIsDetailOpen(false)}
+                  aria-label="Cerrar detalle"
+              >
+                Cerrar
+              </button>
             </div>
+          </div>
 
-            {selectedProduct ? (
-                <>
-                  <div className="vista-previa__imagen">
-                    <img src={selectedProduct.imageUrl} alt={selectedProduct.name} />
+          {selectedProduct ? (
+              <>
+                <div className="vista-previa__imagen">
+                  <img src={selectedProduct.imageUrl} alt={selectedProduct.name} />
+                </div>
+                <span className="vista-previa__etiqueta">{selectedProduct.tag}</span>
+                <p className="vista-previa__categoria">{selectedProduct.category}</p>
+                <h3>{selectedProduct.name}</h3>
+                <p className="vista-previa__descripcion">{selectedProduct.description}</p>
+
+                <div className="vista-previa__datos">
+                  <div>
+                    <span>Precio</span>
+                    <strong>{formatCurrency(selectedProduct.price)}</strong>
                   </div>
-                  <span className="vista-previa__etiqueta">{selectedProduct.tag}</span>
-                  <p className="vista-previa__categoria">{selectedProduct.category}</p>
-                  <h3>{selectedProduct.name}</h3>
-                  <p className="vista-previa__descripcion">{selectedProduct.description}</p>
-
-                  <div className="vista-previa__datos">
-                    <div>
-                      <span>Precio</span>
-                      <strong>{formatCurrency(selectedProduct.price)}</strong>
-                    </div>
-                    <div>
-                      <span>Stock</span>
-                      <strong>{selectedProduct.stock}</strong>
-                    </div>
+                  <div>
+                    <span>Stock</span>
+                    <strong>{selectedProduct.stock}</strong>
                   </div>
+                </div>
 
-                  <p className="vista-previa__disponibilidad">{getAvailabilityText(selectedProduct.stock)}</p>
+                <p className="vista-previa__disponibilidad">{getAvailabilityText(selectedProduct.stock)}</p>
 
-                  <button
-                      type="button"
-                      className="boton-principal"
-                      onClick={() => handleAddToCart(selectedProduct.id)}
-                  >
-                    Agregar al carrito
-                  </button>
-                </>
-            ) : (
-                <p>Selecciona un producto para mostrar su información detallada.</p>
-            )}
-          </aside>
+                <button
+                    type="button"
+                    className="boton-principal"
+                    onClick={() => handleAddToCart(selectedProduct.id)}
+                >
+                  Agregar al carrito
+                </button>
+              </>
+          ) : (
+              <p>Selecciona un producto para mostrar su información detallada.</p>
+          )}
+        </aside>
 
-          <aside className="carrito" aria-label="Carrito de compras">
-            <div className="carrito__encabezado">
-              <div>
-                <h2>Carrito</h2>
-                <p>{cart.totalItems} artículos</p>
+        {isCartOpen && (
+            <button
+                type="button"
+                className="carrito-fondo"
+                aria-label="Cerrar carrito"
+                onClick={() => setIsCartOpen(false)}
+            />
+        )}
+
+        <aside
+            id="panel-carrito"
+            className={`carrito carrito-panel ${isCartOpen ? "carrito-panel--abierto" : ""}`}
+            aria-label="Carrito de compras"
+        >
+          <div className="carrito__encabezado">
+            <div>
+              <h2>Carrito</h2>
+              <p>{cart.totalItems} artículos</p>
+            </div>
+            <strong>{formatCurrency(cart.total)}</strong>
+          </div>
+
+          {cart.items.length === 0 ? (
+              <p className="carrito__vacio">Tu carrito está vacío.</p>
+          ) : (
+              <div className="carrito__lista">
+                {cart.items.map((item) => (
+                    <article key={item.productId} className="carrito__item">
+                      <img src={item.imageUrl} alt={item.name} />
+                      <div className="carrito__item-contenido">
+                        <p className="carrito__categoria">{item.category}</p>
+                        <h3>{item.name}</h3>
+                        <strong>{formatCurrency(item.subtotal)}</strong>
+                        <div className="carrito__acciones">
+                          <button
+                              type="button"
+                              onClick={() => handleChangeQuantity(item.productId, item.quantity - 1)}
+                          >
+                            -
+                          </button>
+                          <span>{item.quantity}</span>
+                          <button
+                              type="button"
+                              onClick={() => handleChangeQuantity(item.productId, item.quantity + 1)}
+                              disabled={item.quantity >= item.stock}
+                          >
+                            +
+                          </button>
+                          <button
+                              type="button"
+                              className="carrito__eliminar"
+                              onClick={() => handleRemoveItem(item.productId)}
+                          >
+                            Eliminar
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                ))}
               </div>
+          )}
+
+          <div className="carrito__resumen">
+            <div className="carrito__resumen-fila">
+              <span>Total a pagar</span>
               <strong>{formatCurrency(cart.total)}</strong>
             </div>
+            <button
+                type="button"
+                className="boton-principal carrito__confirmar"
+                onClick={handleCheckout}
+                disabled={loadingCheckout || cart.items.length === 0}
+            >
+              {loadingCheckout ? "Confirmando compra..." : "Confirmar compra"}
+            </button>
+          </div>
 
-            {cart.items.length === 0 ? (
-                <p className="carrito__vacio">Tu carrito está vacío.</p>
-            ) : (
-                <div className="carrito__lista">
-                  {cart.items.map((item) => (
-                      <article key={item.productId} className="carrito__item">
-                        <img src={item.imageUrl} alt={item.name} />
-                        <div className="carrito__item-contenido">
-                          <p className="carrito__categoria">{item.category}</p>
-                          <h3>{item.name}</h3>
-                          <strong>{formatCurrency(item.subtotal)}</strong>
-                          <div className="carrito__acciones">
-                            <button
-                                type="button"
-                                onClick={() => handleChangeQuantity(item.productId, item.quantity - 1)}
-                            >
-                              -
-                            </button>
-                            <span>{item.quantity}</span>
-                            <button
-                                type="button"
-                                onClick={() => handleChangeQuantity(item.productId, item.quantity + 1)}
-                                disabled={item.quantity >= item.stock}
-                            >
-                              +
-                            </button>
-                            <button
-                                type="button"
-                                className="carrito__eliminar"
-                                onClick={() => handleRemoveItem(item.productId)}
-                            >
-                              Eliminar
-                            </button>
-                          </div>
+          {lastOrder && (
+              <section className="orden-confirmada" aria-label="Visualización confirmada">
+                <div className="orden-confirmada__encabezado">
+                  <h3>Visualización confirmada</h3>
+                  <span>Orden #{lastOrder.id}</span>
+                </div>
+                <p className="orden-confirmada__meta">
+                  {formatOrderDate(lastOrder.createdAt)} · {lastOrder.totalItems} artículos · {lastOrder.status}
+                </p>
+
+                <div className="orden-confirmada__lista">
+                  {lastOrder.items.map((item) => (
+                      <div key={item.productId} className="orden-confirmada__item">
+                        <div>
+                          <p>{item.name}</p>
+                          <small>{item.quantity} x {formatCurrency(item.price)}</small>
                         </div>
-                      </article>
+                        <strong>{formatCurrency(item.subtotal)}</strong>
+                      </div>
                   ))}
                 </div>
-            )}
 
-            {message && <p className="mensaje-sistema">{message}</p>}
-          </aside>
-        </main>
+                <div className="orden-confirmada__pie">
+                  <span>Total orden</span>
+                  <strong>{formatCurrency(lastOrder.total)}</strong>
+                </div>
+              </section>
+          )}
+
+          {message && <p className="mensaje-sistema">{message}</p>}
+        </aside>
+
+        {isOrdersOpen && (
+            <button
+                type="button"
+                className="compras-fondo"
+                aria-label="Cerrar compras"
+                onClick={() => setIsOrdersOpen(false)}
+            />
+        )}
+
+        <aside
+            id="panel-compras"
+            className={`compras compras-panel ${isOrdersOpen ? "compras-panel--abierto" : ""}`}
+            aria-label="Historial de compras"
+        >
+          <div className="compras__encabezado">
+            <div>
+              <h2>Mis compras</h2>
+              <p>{orderHistory.length} tickets</p>
+            </div>
+          </div>
+
+          {orderHistory.length === 0 ? (
+              <p className="compras__vacio">Aún no tienes compras registradas.</p>
+          ) : (
+              <div className="compras__lista">
+                {orderHistory.map((order) => (
+                    <article key={order.id} className="compra-ticket">
+                      <div className="compra-ticket__encabezado">
+                        <strong>Orden #{order.id}</strong>
+                        <span>{order.status}</span>
+                      </div>
+                      <p className="compra-ticket__meta">
+                        {formatOrderDate(order.createdAt)} · {order.totalItems} artículos
+                      </p>
+
+                      <div className="compra-ticket__items">
+                        {order.items.map((item) => (
+                            <div key={`${order.id}-${item.productId}`} className="compra-ticket__item">
+                              <p>{item.name}</p>
+                              <small>{item.quantity} x {formatCurrency(item.price)}</small>
+                              <strong>{formatCurrency(item.subtotal)}</strong>
+                            </div>
+                        ))}
+                      </div>
+
+                      <div className="compra-ticket__pie">
+                        <span>Total</span>
+                        <strong>{formatCurrency(order.total)}</strong>
+                      </div>
+                    </article>
+                ))}
+              </div>
+          )}
+        </aside>
       </div>
   );
 }
@@ -423,6 +707,23 @@ function normalizeCart(rawCart) {
     items,
     total: Number(rawCart.total ?? 0),
     totalItems: Number(rawCart.totalItems ?? 0),
+  };
+}
+
+function normalizeOrder(rawOrder) {
+  const items = (rawOrder.items ?? []).map((item) => ({
+    ...item,
+    price: Number(item.price),
+    subtotal: Number(item.subtotal),
+  }));
+
+  return {
+    id: Number(rawOrder.id),
+    status: rawOrder.status ?? "CONFIRMADA",
+    createdAt: rawOrder.createdAt ?? null,
+    items,
+    total: Number(rawOrder.total ?? 0),
+    totalItems: Number(rawOrder.totalItems ?? 0),
   };
 }
 
@@ -443,6 +744,31 @@ function formatCurrency(value) {
     style: "currency",
     currency: "MXN",
   }).format(Number(value));
+}
+
+function formatOrderDate(dateTime) {
+  if (!dateTime) {
+    return "Fecha no disponible";
+  }
+
+  return new Intl.DateTimeFormat("es-MX", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(dateTime));
+}
+
+async function buildApiError(response, fallbackMessage) {
+  const statusSuffix = response?.status ? ` (HTTP ${response.status})` : "";
+  try {
+    const responseData = await response.json();
+    if (typeof responseData?.message === "string" && responseData.message.trim()) {
+      return new Error(responseData.message.trim());
+    }
+  } catch (error) {
+    void error;
+  }
+
+  return new Error(`${fallbackMessage}${statusSuffix}`);
 }
 
 function buildLocalCartAfterAdd(currentCart, products, productId) {
@@ -499,6 +825,21 @@ function buildLocalCartAfterUpdate(currentCart, nextQuantity, productId) {
 function buildLocalCartAfterDelete(currentCart, productId) {
   const nextItems = currentCart.items.filter((item) => item.productId !== productId);
   return summarizeLocalCart(nextItems);
+}
+
+function buildLocalOrderFromCart(currentCart) {
+  return {
+    id: Date.now(),
+    status: "CONFIRMADA",
+    createdAt: new Date().toISOString(),
+    items: currentCart.items.map((item) => ({
+      ...item,
+      price: Number(item.price),
+      subtotal: Number(item.subtotal),
+    })),
+    total: Number(currentCart.total),
+    totalItems: Number(currentCart.totalItems),
+  };
 }
 
 function summarizeLocalCart(items) {

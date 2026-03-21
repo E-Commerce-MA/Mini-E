@@ -5,46 +5,61 @@ Estructura actual del proyecto:
 - `frontend/`: Aplicacion React con Vite
 - `backend/`: API REST con Spring Boot
 
-## Frontend (React)
+## Levantar backend + frontend juntos
 
+1. Configura la base de datos MySQL (una sola vez):
 ```bash
-cd frontend
-npm install
-npm run dev
+mysql -u root -p < mini_ecommerce_schema.sql
 ```
 
-## Backend (Spring Boot)
+2. Exporta variables para backend (ajusta usuario/password según tu MySQL):
+```bash
+export DB_URL="jdbc:mysql://localhost:3306/mini_ecommerce?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+export DB_USERNAME="root"
+export DB_PASSWORD="TU_PASSWORD"
+```
 
-Requisitos: Java 17+ y Maven.
-
+3. En una terminal, levanta backend:
 ```bash
 cd backend
 mvn spring-boot:run
 ```
 
-Endpoint de prueba:
-
-- `GET http://localhost:8080/api/health`
-
-## Configuración de variables de entorno
-
-### Frontend
-1. Entra a la carpeta `frontend/`
-2. Copia el archivo `.env.example` y renómbralo a `.env`
-3. Ajusta la URL del backend si es necesario:
-```
-VITE_API_URL=http://localhost:8080
-```
-
-### Base de datos
-1. Instala MySQL 8 o superior
-2. Crea la base de datos ejecutando el script `mini_ecommerce_schema.sql` en MySQL Workbench o terminal:
+4. En otra terminal, configura y levanta frontend:
 ```bash
-mysql -u root -p < mini_ecommerce_schema.sql
+cd frontend
+cp .env.example .env
+npm install
+npm run dev
 ```
-3. Abre `backend/src/main/resources/application.properties` y agrega tu contraseña:
+
+5. Verifica conexión:
+- Backend: `http://localhost:8080/api/health`
+- Frontend: `http://localhost:5173`
+
+## Flujo de compra (API)
+
+- `GET /api/products`: catálogo
+- `GET /api/cart`: carrito actual
+- `POST /api/cart/{productId}`: agregar producto
+- `PUT /api/cart/{productId}`: actualizar cantidad
+- `DELETE /api/cart/{productId}`: eliminar producto
+- `POST /api/orders/checkout`: confirma compra, genera orden y limpia carrito
+- `GET /api/orders`: lista compras/tickets realizadas
+- `GET /api/orders/{id}`: consulta de orden generada (visualización confirmada)
+
+## Variables de entorno
+
+### Frontend (`frontend/.env`)
+```bash
+VITE_API_URL=http://localhost:8080
+VITE_PROXY_TARGET=http://localhost:8080
 ```
-spring.datasource.username=root
-spring.datasource.password=TU_PASSWORD_AQUI
+
+### Backend (variables del sistema)
+```bash
+DB_URL=jdbc:mysql://localhost:3306/mini_ecommerce?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+DB_USERNAME=root
+DB_PASSWORD=TU_PASSWORD
+CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 ```
-> ⚠️ Nunca subas el `application.properties` con tu contraseña real al repositorio.

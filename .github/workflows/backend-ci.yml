@@ -15,6 +15,19 @@ jobs:
   backend:
     name: Revisar y compilar Backend
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: mini_ecommerce
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
 
     defaults:
       run:
@@ -31,5 +44,24 @@ jobs:
           java-version: 17
           cache: maven
 
+      - name: Instalar cliente MySQL
+        run: sudo apt-get update && sudo apt-get install -y mysql-client
+
+      - name: Esperar a que MySQL esté listo
+        run: |
+          for i in {1..30}; do
+            if mysqladmin ping -h 127.0.0.1 -uroot -proot --silent; then
+              exit 0
+            fi
+            echo "Esperando MySQL..."
+            sleep 2
+          done
+          echo "MySQL no respondió a tiempo"
+          exit 1
+
       - name: Compilar y verificar con Maven
+        env:
+          DB_URL: jdbc:mysql://127.0.0.1:3306/mini_ecommerce?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+          DB_USERNAME: root
+          DB_PASSWORD: root
         run: mvn -B verify
