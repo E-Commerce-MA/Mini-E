@@ -17,9 +17,9 @@ const fallbackProducts = [
     stock: 12,
     tag: "Nuevo",
     description:
-        "Mochila de uso diario con compartimento acolchado para laptop, cierres reforzados y acabado elegante para oficina o universidad.",
+      "Mochila de uso diario con compartimento acolchado para laptop, cierres reforzados y acabado elegante para oficina o universidad.",
     imageUrl:
-        "https://images.unsplash.com/photo-1622560480605-d83c853bc5c3?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1622560480605-d83c853bc5c3?auto=format&fit=crop&w=900&q=80",
   },
   {
     id: 2,
@@ -29,9 +29,9 @@ const fallbackProducts = [
     stock: 8,
     tag: "Top venta",
     description:
-        "Camisa de corte clásico confeccionada en algodón de alta durabilidad. Ideal para un look formal y cómodo.",
+      "Camisa de corte clásico confeccionada en algodón de alta durabilidad. Ideal para un look formal y cómodo.",
     imageUrl:
-        "https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?auto=format&fit=crop&w=900&q=80",
   },
   {
     id: 3,
@@ -41,9 +41,9 @@ const fallbackProducts = [
     stock: 5,
     tag: "Edición limitada",
     description:
-        "Tenis urbanos con suela antiderrapante, materiales ligeros y diseño contemporáneo para uso diario.",
+      "Tenis urbanos con suela antiderrapante, materiales ligeros y diseño contemporáneo para uso diario.",
     imageUrl:
-        "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=80",
   },
   {
     id: 4,
@@ -53,9 +53,9 @@ const fallbackProducts = [
     stock: 15,
     tag: "Recomendado",
     description:
-        "Reloj analógico con caja de acero inoxidable, resistencia al agua y estilo versátil para cualquier ocasión.",
+      "Reloj analógico con caja de acero inoxidable, resistencia al agua y estilo versátil para cualquier ocasión.",
     imageUrl:
-        "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=900&q=80",
   },
   {
     id: 5,
@@ -65,9 +65,9 @@ const fallbackProducts = [
     stock: 3,
     tag: "Oferta",
     description:
-        "Audífonos inalámbricos con cancelación de ruido, batería extendida y sonido envolvente para trabajo o entretenimiento.",
+      "Audífonos inalámbricos con cancelación de ruido, batería extendida y sonido envolvente para trabajo o entretenimiento.",
     imageUrl:
-        "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=900&q=80",
   },
   {
     id: 6,
@@ -77,9 +77,9 @@ const fallbackProducts = [
     stock: 1,
     tag: "Nuevo",
     description:
-        "Lámpara decorativa de diseño minimalista con luz cálida regulable para espacios modernos.",
+      "Lámpara decorativa de diseño minimalista con luz cálida regulable para espacios modernos.",
     imageUrl:
-        "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&w=900&q=80",
   },
 ];
 
@@ -91,7 +91,7 @@ const fallbackCart = {
       category: "Accesorios",
       tag: "Nuevo",
       imageUrl:
-          "https://images.unsplash.com/photo-1622560480605-d83c853bc5c3?auto=format&fit=crop&w=900&q=80",
+        "https://images.unsplash.com/photo-1622560480605-d83c853bc5c3?auto=format&fit=crop&w=900&q=80",
       price: 1299,
       stock: 12,
       quantity: 1,
@@ -103,7 +103,7 @@ const fallbackCart = {
       category: "Accesorios",
       tag: "Recomendado",
       imageUrl:
-          "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=900&q=80",
+        "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=900&q=80",
       price: 2450,
       stock: 15,
       quantity: 2,
@@ -128,6 +128,8 @@ function App() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isOrdersOpen, setIsOrdersOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [codigoPromocion, setCodigoPromocion] = useState("");
+  const [promocionAplicada, setPromocionAplicada] = useState(null);
 
   useEffect(() => {
     function onKeyDown(event) {
@@ -205,10 +207,16 @@ function App() {
 
     return products.filter((product) => {
       return [product.name, product.category, product.tag]
-          .filter(Boolean)
-          .some((value) => value.toLowerCase().includes(normalizedSearch));
+        .filter(Boolean)
+        .some((value) => value.toLowerCase().includes(normalizedSearch));
     });
   }, [products, searchTerm]);
+
+  const totalConDescuento = useMemo(() => {
+    if (!promocionAplicada) return cart.total;
+    const descuento = cart.total * (promocionAplicada.valor / 100);
+    return cart.total - descuento;
+  }, [cart.total, promocionAplicada]);
 
   async function handleSelectProduct(productId) {
     setLoadingDetail(true);
@@ -362,337 +370,397 @@ function App() {
     }
   }
 
+  async function handleAplicarPromocion() {
+    if (!codigoPromocion.trim()) {
+      setMessage("Ingresa un código de promoción.");
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/promociones/${codigoPromocion.trim()}`);
+      if (!response.ok) {
+        const error = await response.json();
+        setMessage(error.message ?? "Código de promoción no válido.");
+        return;
+      }
+
+      const promo = await response.json();
+      setPromocionAplicada(promo);
+      setMessage(`Promoción aplicada: ${promo.valor}% de descuento.`);
+    } catch {
+      setMessage("No se pudo validar el código de promoción.");
+    }
+  }
+
   return (
-      <div className="app-contenedor">
-        <header className="encabezado">
-          <div className="encabezado__contenido encabezado__contenido--dividido">
-            <div>
-              <h1 className="encabezado__titulo">Mini E-Commerce</h1>
-              <p className="encabezado__subtitulo">
-                Explora productos, agrega al carrito y confirma tu compra con registro de orden en base de datos.
-              </p>
-            </div>
-
-            <section className="buscador buscador--encabezado" aria-label="Buscador de productos">
-              <label htmlFor="busqueda" className="buscador__etiqueta">
-                Buscar producto
-              </label>
-              <div className="buscador__bloque">
-                <div className="buscador__controles">
-                  <input
-                      id="busqueda"
-                      name="busqueda"
-                      type="text"
-                      value={searchTerm}
-                      onChange={(event) => setSearchTerm(event.target.value)}
-                      placeholder="Mochila, reloj, camisa..."
-                  />
-                </div>
-
-                <div className="panel-acciones">
-                  <button
-                      type="button"
-                      className="boton-carrito"
-                      onClick={() => {
-                        setIsOrdersOpen(false);
-                        setIsCartOpen((current) => !current);
-                      }}
-                      aria-expanded={isCartOpen}
-                      aria-controls="panel-carrito"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M2.5 4h2l1.6 9.2a2 2 0 0 0 2 1.7h8.7a2 2 0 0 0 2-1.6L20.2 7H6.1" />
-                      <circle cx="9" cy="19" r="1.6" />
-                      <circle cx="17" cy="19" r="1.6" />
-                    </svg>
-                    <span>Carrito</span>
-                    <small>{cart.totalItems}</small>
-                  </button>
-
-                  <button
-                      type="button"
-                      className="boton-compras"
-                      onClick={() => {
-                        setIsCartOpen(false);
-                        setIsOrdersOpen((current) => !current);
-                      }}
-                      aria-expanded={isOrdersOpen}
-                      aria-controls="panel-compras"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M6 3h12a1 1 0 0 1 1 1v16l-3.5-2-3.5 2-3.5-2-3.5 2V4a1 1 0 0 1 1-1z" />
-                      <path d="M8.5 7.5h7M8.5 11h7M8.5 14.5h5" />
-                    </svg>
-                    <span>Compras</span>
-                    <small>{orderHistory.length}</small>
-                  </button>
-                </div>
-              </div>
-            </section>
+    <div className="app-contenedor">
+      <header className="encabezado">
+        <div className="encabezado__contenido encabezado__contenido--dividido">
+          <div>
+            <h1 className="encabezado__titulo">Mini E-Commerce</h1>
+            <p className="encabezado__subtitulo">
+              Explora productos, agrega al carrito y confirma tu compra con registro de orden en base de datos.
+            </p>
           </div>
-        </header>
 
-        <main className="distribucion distribucion--una-columna">
-          <section className="catalogo" aria-label="Productos disponibles">
-            <div className="catalogo__barra-superior">
-              <h2>Productos Disponibles</h2>
-              <div className="catalogo__filtros">
-                <span>{filteredProducts.length} resultados</span>
+          <section className="buscador buscador--encabezado" aria-label="Buscador de productos">
+            <label htmlFor="busqueda" className="buscador__etiqueta">
+              Buscar producto
+            </label>
+            <div className="buscador__bloque">
+              <div className="buscador__controles">
+                <input
+                  id="busqueda"
+                  name="busqueda"
+                  type="text"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="Mochila, reloj, camisa..."
+                />
               </div>
-            </div>
 
-            <div className="catalogo__cuadricula">
-              {filteredProducts.map((product) => (
-                  <article key={product.id} className="tarjeta-producto">
-                    <div className="tarjeta-producto__media">
-                      <img src={product.imageUrl} alt={product.name} />
-                    </div>
-                    <div className="tarjeta-producto__contenido">
-                      <span className="tarjeta-producto__etiqueta">{product.tag}</span>
-                      <p className="tarjeta-producto__categoria">{product.category}</p>
-                      <h3>{product.name}</h3>
-                      <p className="tarjeta-producto__estado">{getAvailabilityText(product.stock)}</p>
-                      <div className="tarjeta-producto__pie">
-                        <strong>{formatCurrency(product.price)}</strong>
-                        <button type="button" onClick={() => handleSelectProduct(product.id)}>
-                          Ver detalle
-                        </button>
-                      </div>
-                    </div>
-                  </article>
-              ))}
-            </div>
-          </section>
-        </main>
-
-        {isDetailOpen && (
-            <button
-                type="button"
-                className="detalle-fondo"
-                aria-label="Cerrar detalle"
-                onClick={() => setIsDetailOpen(false)}
-            />
-        )}
-
-        <aside
-            className={`vista-previa detalle-panel ${isDetailOpen ? "detalle-panel--abierto" : ""}`}
-            aria-label="Detalle del producto"
-        >
-          <div className="vista-previa__encabezado">
-            <h2>Detalle del producto</h2>
-            <div className="vista-previa__acciones">
-              {loadingDetail && <span className="estado-carga">Consultando...</span>}
-              <button
+              <div className="panel-acciones">
+                <button
                   type="button"
-                  className="boton-cerrar-panel"
-                  onClick={() => setIsDetailOpen(false)}
-                  aria-label="Cerrar detalle"
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
-
-          {selectedProduct ? (
-              <>
-                <div className="vista-previa__imagen">
-                  <img src={selectedProduct.imageUrl} alt={selectedProduct.name} />
-                </div>
-                <span className="vista-previa__etiqueta">{selectedProduct.tag}</span>
-                <p className="vista-previa__categoria">{selectedProduct.category}</p>
-                <h3>{selectedProduct.name}</h3>
-                <p className="vista-previa__descripcion">{selectedProduct.description}</p>
-
-                <div className="vista-previa__datos">
-                  <div>
-                    <span>Precio</span>
-                    <strong>{formatCurrency(selectedProduct.price)}</strong>
-                  </div>
-                  <div>
-                    <span>Stock</span>
-                    <strong>{selectedProduct.stock}</strong>
-                  </div>
-                </div>
-
-                <p className="vista-previa__disponibilidad">{getAvailabilityText(selectedProduct.stock)}</p>
+                  className="boton-carrito"
+                  onClick={() => {
+                    setIsOrdersOpen(false);
+                    setIsCartOpen((current) => !current);
+                  }}
+                  aria-expanded={isCartOpen}
+                  aria-controls="panel-carrito"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M2.5 4h2l1.6 9.2a2 2 0 0 0 2 1.7h8.7a2 2 0 0 0 2-1.6L20.2 7H6.1" />
+                    <circle cx="9" cy="19" r="1.6" />
+                    <circle cx="17" cy="19" r="1.6" />
+                  </svg>
+                  <span>Carrito</span>
+                  <small>{cart.totalItems}</small>
+                </button>
 
                 <button
-                    type="button"
-                    className="boton-principal"
-                    onClick={() => handleAddToCart(selectedProduct.id)}
+                  type="button"
+                  className="boton-compras"
+                  onClick={() => {
+                    setIsCartOpen(false);
+                    setIsOrdersOpen((current) => !current);
+                  }}
+                  aria-expanded={isOrdersOpen}
+                  aria-controls="panel-compras"
                 >
-                  Agregar al carrito
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M6 3h12a1 1 0 0 1 1 1v16l-3.5-2-3.5 2-3.5-2-3.5 2V4a1 1 0 0 1 1-1z" />
+                    <path d="M8.5 7.5h7M8.5 11h7M8.5 14.5h5" />
+                  </svg>
+                  <span>Compras</span>
+                  <small>{orderHistory.length}</small>
                 </button>
-              </>
-          ) : (
-              <p>Selecciona un producto para mostrar su información detallada.</p>
-          )}
-        </aside>
-
-        {isCartOpen && (
-            <button
-                type="button"
-                className="carrito-fondo"
-                aria-label="Cerrar carrito"
-                onClick={() => setIsCartOpen(false)}
-            />
-        )}
-
-        <aside
-            id="panel-carrito"
-            className={`carrito carrito-panel ${isCartOpen ? "carrito-panel--abierto" : ""}`}
-            aria-label="Carrito de compras"
-        >
-          <div className="carrito__encabezado">
-            <div>
-              <h2>Carrito</h2>
-              <p>{cart.totalItems} artículos</p>
+              </div>
             </div>
-            <strong>{formatCurrency(cart.total)}</strong>
+          </section>
+        </div>
+      </header>
+
+      <main className="distribucion distribucion--una-columna">
+        <section className="catalogo" aria-label="Productos disponibles">
+          <div className="catalogo__barra-superior">
+            <h2>Productos Disponibles</h2>
+            <div className="catalogo__filtros">
+              <span>{filteredProducts.length} resultados</span>
+            </div>
           </div>
 
-          {cart.items.length === 0 ? (
-              <p className="carrito__vacio">Tu carrito está vacío.</p>
-          ) : (
-              <div className="carrito__lista">
-                {cart.items.map((item) => (
-                    <article key={item.productId} className="carrito__item">
-                      <img src={item.imageUrl} alt={item.name} />
-                      <div className="carrito__item-contenido">
-                        <p className="carrito__categoria">{item.category}</p>
-                        <h3>{item.name}</h3>
-                        <strong>{formatCurrency(item.subtotal)}</strong>
-                        <div className="carrito__acciones">
-                          <button
-                              type="button"
-                              onClick={() => handleChangeQuantity(item.productId, item.quantity - 1)}
-                          >
-                            -
-                          </button>
-                          <span>{item.quantity}</span>
-                          <button
-                              type="button"
-                              onClick={() => handleChangeQuantity(item.productId, item.quantity + 1)}
-                              disabled={item.quantity >= item.stock}
-                          >
-                            +
-                          </button>
-                          <button
-                              type="button"
-                              className="carrito__eliminar"
-                              onClick={() => handleRemoveItem(item.productId)}
-                          >
-                            Eliminar
-                          </button>
-                        </div>
-                      </div>
-                    </article>
-                ))}
-              </div>
-          )}
+          <div className="catalogo__cuadricula">
+            {filteredProducts.map((product) => (
+              <article key={product.id} className="tarjeta-producto">
+                <div className="tarjeta-producto__media">
+                  <img src={product.imageUrl} alt={product.name} />
+                </div>
+                <div className="tarjeta-producto__contenido">
+                  <span className="tarjeta-producto__etiqueta">{product.tag}</span>
+                  <p className="tarjeta-producto__categoria">{product.category}</p>
+                  <h3>{product.name}</h3>
+                  <p className="tarjeta-producto__estado">{getAvailabilityText(product.stock)}</p>
+                  <div className="tarjeta-producto__pie">
+                    <strong>{formatCurrency(product.price)}</strong>
+                    <button type="button" onClick={() => handleSelectProduct(product.id)}>
+                      Ver detalle
+                    </button>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      </main>
 
-          <div className="carrito__resumen">
-            <div className="carrito__resumen-fila">
-              <span>Total a pagar</span>
-              <strong>{formatCurrency(cart.total)}</strong>
-            </div>
+      {isDetailOpen && (
+        <button
+          type="button"
+          className="detalle-fondo"
+          aria-label="Cerrar detalle"
+          onClick={() => setIsDetailOpen(false)}
+        />
+      )}
+
+      <aside
+        className={`vista-previa detalle-panel ${isDetailOpen ? "detalle-panel--abierto" : ""}`}
+        aria-label="Detalle del producto"
+      >
+        <div className="vista-previa__encabezado">
+          <h2>Detalle del producto</h2>
+          <div className="vista-previa__acciones">
+            {loadingDetail && <span className="estado-carga">Consultando...</span>}
             <button
-                type="button"
-                className="boton-principal carrito__confirmar"
-                onClick={handleCheckout}
-                disabled={loadingCheckout || cart.items.length === 0}
+              type="button"
+              className="boton-cerrar-panel"
+              onClick={() => setIsDetailOpen(false)}
+              aria-label="Cerrar detalle"
             >
-              {loadingCheckout ? "Confirmando compra..." : "Confirmar compra"}
+              Cerrar
             </button>
           </div>
+        </div>
 
-          {lastOrder && (
-              <section className="orden-confirmada" aria-label="Visualización confirmada">
-                <div className="orden-confirmada__encabezado">
-                  <h3>Visualización confirmada</h3>
-                  <span>Orden #{lastOrder.id}</span>
+        {selectedProduct ? (
+          <>
+            <div className="vista-previa__imagen">
+              <img src={selectedProduct.imageUrl} alt={selectedProduct.name} />
+            </div>
+            <span className="vista-previa__etiqueta">{selectedProduct.tag}</span>
+            <p className="vista-previa__categoria">{selectedProduct.category}</p>
+            <h3>{selectedProduct.name}</h3>
+            <p className="vista-previa__descripcion">{selectedProduct.description}</p>
+
+            <div className="vista-previa__datos">
+              <div>
+                <span>Precio</span>
+                <strong>{formatCurrency(selectedProduct.price)}</strong>
+              </div>
+              <div>
+                <span>Stock</span>
+                <strong>{selectedProduct.stock}</strong>
+              </div>
+            </div>
+
+            <p className="vista-previa__disponibilidad">{getAvailabilityText(selectedProduct.stock)}</p>
+
+            <button
+              type="button"
+              className="boton-principal"
+              onClick={() => handleAddToCart(selectedProduct.id)}
+            >
+              Agregar al carrito
+            </button>
+          </>
+        ) : (
+          <p>Selecciona un producto para mostrar su información detallada.</p>
+        )}
+      </aside>
+
+      {isCartOpen && (
+        <button
+          type="button"
+          className="carrito-fondo"
+          aria-label="Cerrar carrito"
+          onClick={() => setIsCartOpen(false)}
+        />
+      )}
+
+      <aside
+        id="panel-carrito"
+        className={`carrito carrito-panel ${isCartOpen ? "carrito-panel--abierto" : ""}`}
+        aria-label="Carrito de compras"
+      >
+        <div className="carrito__encabezado">
+          <div>
+            <h2>Carrito</h2>
+            <p>{cart.totalItems} artículos</p>
+          </div>
+          <div>
+            {promocionAplicada && (
+              <small style={{ textDecoration: "line-through", color: "gray" }}>
+                {formatCurrency(cart.total)}
+              </small>
+            )}
+            <strong>{formatCurrency(totalConDescuento)}</strong>
+          </div>
+        </div>
+
+        {cart.items.length === 0 ? (
+          <p className="carrito__vacio">Tu carrito está vacío.</p>
+        ) : (
+          <div className="carrito__lista">
+            {cart.items.map((item) => (
+              <article key={item.productId} className="carrito__item">
+                <img src={item.imageUrl} alt={item.name} />
+                <div className="carrito__item-contenido">
+                  <p className="carrito__categoria">{item.category}</p>
+                  <h3>{item.name}</h3>
+                  <strong>{formatCurrency(item.subtotal)}</strong>
+                  <div className="carrito__acciones">
+                    <button
+                      type="button"
+                      onClick={() => handleChangeQuantity(item.productId, item.quantity - 1)}
+                    >
+                      -
+                    </button>
+                    <span>{item.quantity}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleChangeQuantity(item.productId, item.quantity + 1)}
+                      disabled={item.quantity >= item.stock}
+                    >
+                      +
+                    </button>
+                    <button
+                      type="button"
+                      className="carrito__eliminar"
+                      onClick={() => handleRemoveItem(item.productId)}
+                    >
+                      Eliminar
+                    </button>
+                  </div>
                 </div>
-                <p className="orden-confirmada__meta">
-                  {formatOrderDate(lastOrder.createdAt)} · {lastOrder.totalItems} artículos · {lastOrder.status}
+              </article>
+            ))}
+          </div>
+        )}
+
+        <div className="carrito__resumen">
+          <div className="carrito__promocion">
+            <input
+              type="text"
+              placeholder="Código de promoción"
+              value={codigoPromocion}
+              onChange={(e) => setCodigoPromocion(e.target.value)}
+            />
+            <button type="button" className="boton-principal" onClick={handleAplicarPromocion}>
+              Aplicar
+            </button>
+            {promocionAplicada && (
+              <p className="carrito__descuento">
+                ✅ {promocionAplicada.descripcion} — {promocionAplicada.valor}% off
+              </p>
+            )}
+          </div>
+          {promocionAplicada && (
+            <div className="carrito__resumen-fila">
+              <span>Subtotal</span>
+              <strong>{formatCurrency(cart.total)}</strong>
+            </div>
+          )}
+          {promocionAplicada && (
+            <div className="carrito__resumen-fila">
+              <span>Descuento ({promocionAplicada.valor}%)</span>
+              <strong style={{ color: "green" }}>
+                -{formatCurrency(cart.total - totalConDescuento)}
+              </strong>
+            </div>
+          )}
+
+          <div className="carrito__resumen-fila">
+            <span>Total a pagar</span>
+            <strong>{formatCurrency(totalConDescuento)}</strong>
+          </div>
+          <button
+            type="button"
+            className="boton-principal carrito__confirmar"
+            onClick={handleCheckout}
+            disabled={loadingCheckout || cart.items.length === 0}
+          >
+            {loadingCheckout ? "Confirmando compra..." : "Confirmar compra"}
+          </button>
+        </div>
+
+        {lastOrder && (
+          <section className="orden-confirmada" aria-label="Visualización confirmada">
+            <div className="orden-confirmada__encabezado">
+              <h3>Visualización confirmada</h3>
+              <span>Orden #{lastOrder.id}</span>
+            </div>
+            <p className="orden-confirmada__meta">
+              {formatOrderDate(lastOrder.createdAt)} · {lastOrder.totalItems} artículos · {lastOrder.status}
+            </p>
+
+            <div className="orden-confirmada__lista">
+              {lastOrder.items.map((item) => (
+                <div key={item.productId} className="orden-confirmada__item">
+                  <div>
+                    <p>{item.name}</p>
+                    <small>{item.quantity} x {formatCurrency(item.price)}</small>
+                  </div>
+                  <strong>{formatCurrency(item.subtotal)}</strong>
+                </div>
+              ))}
+            </div>
+
+            <div className="orden-confirmada__pie">
+              <span>Total orden</span>
+              <strong>{formatCurrency(lastOrder.total)}</strong>
+            </div>
+          </section>
+        )}
+
+        {message && <p className="mensaje-sistema">{message}</p>}
+      </aside>
+
+      {isOrdersOpen && (
+        <button
+          type="button"
+          className="compras-fondo"
+          aria-label="Cerrar compras"
+          onClick={() => setIsOrdersOpen(false)}
+        />
+      )}
+
+      <aside
+        id="panel-compras"
+        className={`compras compras-panel ${isOrdersOpen ? "compras-panel--abierto" : ""}`}
+        aria-label="Historial de compras"
+      >
+        <div className="compras__encabezado">
+          <div>
+            <h2>Mis compras</h2>
+            <p>{orderHistory.length} tickets</p>
+          </div>
+        </div>
+
+        {orderHistory.length === 0 ? (
+          <p className="compras__vacio">Aún no tienes compras registradas.</p>
+        ) : (
+          <div className="compras__lista">
+            {orderHistory.map((order) => (
+              <article key={order.id} className="compra-ticket">
+                <div className="compra-ticket__encabezado">
+                  <strong>Orden #{order.id}</strong>
+                  <span>{order.status}</span>
+                </div>
+                <p className="compra-ticket__meta">
+                  {formatOrderDate(order.createdAt)} · {order.totalItems} artículos
                 </p>
 
-                <div className="orden-confirmada__lista">
-                  {lastOrder.items.map((item) => (
-                      <div key={item.productId} className="orden-confirmada__item">
-                        <div>
-                          <p>{item.name}</p>
-                          <small>{item.quantity} x {formatCurrency(item.price)}</small>
-                        </div>
-                        <strong>{formatCurrency(item.subtotal)}</strong>
-                      </div>
+                <div className="compra-ticket__items">
+                  {order.items.map((item) => (
+                    <div key={`${order.id}-${item.productId}`} className="compra-ticket__item">
+                      <p>{item.name}</p>
+                      <small>{item.quantity} x {formatCurrency(item.price)}</small>
+                      <strong>{formatCurrency(item.subtotal)}</strong>
+                    </div>
                   ))}
                 </div>
 
-                <div className="orden-confirmada__pie">
-                  <span>Total orden</span>
-                  <strong>{formatCurrency(lastOrder.total)}</strong>
+                <div className="compra-ticket__pie">
+                  <span>Total</span>
+                  <strong>{formatCurrency(order.total)}</strong>
                 </div>
-              </section>
-          )}
-
-          {message && <p className="mensaje-sistema">{message}</p>}
-        </aside>
-
-        {isOrdersOpen && (
-            <button
-                type="button"
-                className="compras-fondo"
-                aria-label="Cerrar compras"
-                onClick={() => setIsOrdersOpen(false)}
-            />
-        )}
-
-        <aside
-            id="panel-compras"
-            className={`compras compras-panel ${isOrdersOpen ? "compras-panel--abierto" : ""}`}
-            aria-label="Historial de compras"
-        >
-          <div className="compras__encabezado">
-            <div>
-              <h2>Mis compras</h2>
-              <p>{orderHistory.length} tickets</p>
-            </div>
+              </article>
+            ))}
           </div>
-
-          {orderHistory.length === 0 ? (
-              <p className="compras__vacio">Aún no tienes compras registradas.</p>
-          ) : (
-              <div className="compras__lista">
-                {orderHistory.map((order) => (
-                    <article key={order.id} className="compra-ticket">
-                      <div className="compra-ticket__encabezado">
-                        <strong>Orden #{order.id}</strong>
-                        <span>{order.status}</span>
-                      </div>
-                      <p className="compra-ticket__meta">
-                        {formatOrderDate(order.createdAt)} · {order.totalItems} artículos
-                      </p>
-
-                      <div className="compra-ticket__items">
-                        {order.items.map((item) => (
-                            <div key={`${order.id}-${item.productId}`} className="compra-ticket__item">
-                              <p>{item.name}</p>
-                              <small>{item.quantity} x {formatCurrency(item.price)}</small>
-                              <strong>{formatCurrency(item.subtotal)}</strong>
-                            </div>
-                        ))}
-                      </div>
-
-                      <div className="compra-ticket__pie">
-                        <span>Total</span>
-                        <strong>{formatCurrency(order.total)}</strong>
-                      </div>
-                    </article>
-                ))}
-              </div>
-          )}
-        </aside>
-      </div>
+        )}
+      </aside>
+    </div>
   );
 }
 
