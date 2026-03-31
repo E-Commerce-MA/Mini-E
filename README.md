@@ -48,6 +48,26 @@ npm run dev
 - `GET /api/orders`: lista compras/tickets realizadas
 - `GET /api/orders/{id}`: consulta de orden generada (visualización confirmada)
 
+## Autenticación y roles
+
+- `POST /api/auth/login`: inicio de sesión con JWT.
+- Todos los endpoints `/api/**` requieren token (excepto `/api/health` y `/api/auth/login`).
+- Rol `USER`: puede consultar productos, usar carrito, confirmar compras y validar promociones.
+- Rol `ADMIN`: todo lo anterior + crear promociones (`POST /api/promociones`).
+
+Cuentas de prueba precargadas por el backend:
+
+- `Usuario: admin / Contraseña: admin123` (rol `ADMIN`)
+- `Usuario: usuario / Contraseña: user123` (rol `USER`)
+
+Ejemplo de login:
+
+```bash
+curl -X POST http://localhost:8080/api/auth/login \\
+  -H "Content-Type: application/json" \\
+  -d '{"username":"admin","password":"admin123"}'
+```
+
 ## Variables de entorno
 
 ### Frontend (`frontend/.env`)

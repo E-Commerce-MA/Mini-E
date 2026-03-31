@@ -40,6 +40,48 @@ input {
       var(--color-fondo);
 }
 
+.auth-layout {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+      radial-gradient(circle at 15% 10%, rgba(30, 63, 102, 0.12), transparent 35%),
+      radial-gradient(circle at 85% 0%, rgba(255, 157, 0, 0.14), transparent 32%),
+      var(--color-fondo);
+}
+
+.auth-card {
+  width: min(460px, 100%);
+  background: var(--color-superficie);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra);
+  padding: 24px;
+}
+
+.auth-form {
+  margin-top: 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.auth-form label {
+  font-weight: 700;
+}
+
+.auth-form input {
+  border: 1px solid var(--color-borde);
+  border-radius: 12px;
+  min-height: 44px;
+  padding: 0 12px;
+}
+
+.auth-ayuda {
+  margin: 14px 0 0;
+  color: var(--color-secundario);
+}
+
 .encabezado {
   position: sticky;
   top: 0;
@@ -107,6 +149,31 @@ input {
 .panel-acciones {
   display: inline-flex;
   gap: 8px;
+}
+
+.sesion-panel {
+  margin-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.sesion-panel__usuario {
+  margin: 0;
+  font-weight: 700;
+  color: var(--color-marca);
+}
+
+.boton-sesion {
+  border: 1px solid #f2c7c7;
+  background: #fff4f4;
+  color: #9f2f2f;
+  border-radius: 12px;
+  min-height: 40px;
+  padding: 0 12px;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .buscador input,
@@ -205,6 +272,7 @@ input {
 .vista-previa,
 .carrito,
 .compras,
+.admin-panel,
 .buscador {
   background: var(--color-superficie);
   border: 1px solid var(--color-borde);
@@ -215,12 +283,40 @@ input {
 .catalogo,
 .vista-previa,
 .carrito,
-.compras {
+.compras,
+.admin-panel {
   padding: 22px;
 }
 
 .buscador {
   padding: 18px;
+}
+
+.admin-panel__encabezado h2 {
+  margin: 0;
+  font-family: var(--fuente-titulo);
+}
+
+.admin-panel__encabezado p {
+  margin: 8px 0 0;
+  color: var(--color-secundario);
+}
+
+.admin-panel__form {
+  margin-top: 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.admin-panel__form label {
+  font-weight: 700;
+}
+
+.admin-panel__form input {
+  border: 1px solid var(--color-borde);
+  border-radius: 12px;
+  min-height: 42px;
+  padding: 0 12px;
 }
 
 .catalogo__barra-superior,
@@ -720,6 +816,15 @@ input {
     grid-template-columns: 1fr;
   }
 
+  .sesion-panel {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .boton-sesion {
+    width: 100%;
+  }
+
   .panel-acciones {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -744,6 +849,7 @@ input {
   .vista-previa,
   .carrito,
   .compras,
+  .admin-panel,
   .buscador {
     padding: 16px;
   }

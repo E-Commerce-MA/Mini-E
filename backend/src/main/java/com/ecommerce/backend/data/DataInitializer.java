@@ -1,5 +1,8 @@
 package com.ecommerce.backend.data;
 
+import com.ecommerce.backend.auth.AppUser;
+import com.ecommerce.backend.auth.AppUserRepository;
+import com.ecommerce.backend.auth.UserRole;
 import com.ecommerce.backend.cart.CartItem;
 import com.ecommerce.backend.cart.CartItemRepository;
 import com.ecommerce.backend.product.Product;
@@ -7,6 +10,7 @@ import com.ecommerce.backend.product.ProductRepository;
 import java.math.BigDecimal;
 import java.util.List;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -14,14 +18,24 @@ public class DataInitializer implements CommandLineRunner {
 
     private final ProductRepository productRepository;
     private final CartItemRepository cartItemRepository;
+    private final AppUserRepository appUserRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public DataInitializer(ProductRepository productRepository, CartItemRepository cartItemRepository) {
+    public DataInitializer(
+            ProductRepository productRepository,
+            CartItemRepository cartItemRepository,
+            AppUserRepository appUserRepository,
+            PasswordEncoder passwordEncoder) {
         this.productRepository = productRepository;
         this.cartItemRepository = cartItemRepository;
+        this.appUserRepository = appUserRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Override
     public void run(String... args) {
+        seedUsers();
+
         if (productRepository.count() == 0) {
             List<Product> products = List.of(
                     new Product("Mochila Ejecutiva Orion", "Accesorios", new BigDecimal("1299.00"), 12, "Nuevo",
@@ -55,6 +69,16 @@ public class DataInitializer implements CommandLineRunner {
             if (reloj != null) {
                 cartItemRepository.save(new CartItem(reloj, 2));
             }
+        }
+    }
+
+    private void seedUsers() {
+        if (!appUserRepository.existsByUsername("admin")) {
+            appUserRepository.save(new AppUser("admin", passwordEncoder.encode("admin123"), UserRole.ADMIN, true));
+        }
+
+        if (!appUserRepository.existsByUsername("usuario")) {
+            appUserRepository.save(new AppUser("usuario", passwordEncoder.encode("user123"), UserRole.USER, true));
         }
     }
 }

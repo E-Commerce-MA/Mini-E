@@ -8,6 +8,13 @@ const API_URL = configuredApiUrl
     : `${configuredApiUrl}/api`
   : "/api";
 
+const AUTH_STORAGE_KEY = "mini_ecommerce_auth";
+const EMPTY_CART = { items: [], total: 0, totalItems: 0 };
+const ROLE_LABELS = {
+  ADMIN: "Administrador",
+  USER: "Usuario",
+};
+
 const fallbackProducts = [
   {
     id: 1,
@@ -118,7 +125,7 @@ function App() {
   const [products, setProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [cart, setCart] = useState({ items: [], total: 0, totalItems: 0 });
+  const [cart, setCart] = useState(EMPTY_CART);
   const [usesFallback, setUsesFallback] = useState(false);
   const [message, setMessage] = useState("");
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -130,6 +137,101 @@ function App() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [codigoPromocion, setCodigoPromocion] = useState("");
   const [promocionAplicada, setPromocionAplicada] = useState(null);
+
+  const [authToken, setAuthToken] = useState(() => readStoredSession().token);
+  const [currentUser, setCurrentUser] = useState(() => readStoredSession().user);
+  const [loginForm, setLoginForm] = useState({ username: "", password: "" });
+  const [loadingLogin, setLoadingLogin] = useState(false);
+
+  const [creatingPromo, setCreatingPromo] = useState(false);
+  const [promoForm, setPromoForm] = useState(() => ({
+    codigo: "",
+    descripcion: "",
+    valor: "",
+    fechaInicio: getTodayInputDate(),
+    fechaFin: getTodayInputDate(),
+    usoMaximo: "",
+  }));
+
+  const isAdmin = currentUser?.role === "ADMIN";
+
+  const fetchWithAuth = useCallback(
+    (path, options = {}) => {
+      const headers = new Headers(options.headers ?? {});
+      if (authToken) {
+        headers.set("Authorization", `Bearer ${authToken}`);
+      }
+
+      return fetch(`${API_URL}${path}`, {
+        ...options,
+        headers,
+      });
+    },
+    [authToken],
+  );
+
+  const clearSession = useCallback((nextMessage = "") => {
+    setAuthToken("");
+    setCurrentUser(null);
+    setProducts([]);
+    setSelectedProduct(null);
+    setCart(EMPTY_CART);
+    setOrderHistory([]);
+    setLastOrder(null);
+    setUsesFallback(false);
+    setIsCartOpen(false);
+    setIsOrdersOpen(false);
+    setIsDetailOpen(false);
+    setCodigoPromocion("");
+    setPromocionAplicada(null);
+    setSearchTerm("");
+    setPromoForm({
+      codigo: "",
+      descripcion: "",
+      valor: "",
+      fechaInicio: getTodayInputDate(),
+      fechaFin: getTodayInputDate(),
+      usoMaximo: "",
+    });
+    setMessage(nextMessage);
+  }, []);
+
+  const handleApiError = useCallback(
+    (error, fallbackMessage) => {
+      if (isUnauthorizedError(error)) {
+        clearSession("Tu sesión expiró. Inicia sesión nuevamente.");
+        return;
+      }
+
+      if (error instanceof Error && error.message.trim()) {
+        setMessage(error.message);
+        return;
+      }
+
+      setMessage(fallbackMessage);
+    },
+    [clearSession],
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (authToken && currentUser) {
+      window.localStorage.setItem(
+        AUTH_STORAGE_KEY,
+        JSON.stringify({
+          token: authToken,
+          username: currentUser.username,
+          role: currentUser.role,
+        }),
+      );
+      return;
+    }
+
+    window.localStorage.removeItem(AUTH_STORAGE_KEY);
+  }, [authToken, currentUser]);
 
   useEffect(() => {
     function onKeyDown(event) {
@@ -147,7 +249,7 @@ function App() {
   }, []);
 
   const refreshOrderHistory = useCallback(async () => {
-    const response = await fetch(`${API_URL}/orders`);
+    const response = await fetchWithAuth("/orders");
     if (!response.ok) {
       throw await buildApiError(response, "No fue posible cargar las compras.");
     }
@@ -157,17 +259,25 @@ function App() {
     setOrderHistory(normalizedOrders);
     setLastOrder(normalizedOrders[0] ?? null);
     return normalizedOrders;
-  }, []);
+  }, [fetchWithAuth]);
 
   const loadInitialData = useCallback(async () => {
+    if (!authToken) {
+      return;
+    }
+
     try {
       const [productsResponse, cartResponse] = await Promise.all([
-        fetch(`${API_URL}/products`),
-        fetch(`${API_URL}/cart`),
+        fetchWithAuth("/products"),
+        fetchWithAuth("/cart"),
       ]);
 
-      if (!productsResponse.ok || !cartResponse.ok) {
-        throw new Error("No fue posible cargar la información desde el backend.");
+      if (!productsResponse.ok) {
+        throw await buildApiError(productsResponse, "No fue posible cargar los productos.");
+      }
+
+      if (!cartResponse.ok) {
+        throw await buildApiError(cartResponse, "No fue posible cargar el carrito.");
       }
 
       const productsData = await productsResponse.json();
@@ -184,20 +294,35 @@ function App() {
       }
       setUsesFallback(false);
       setMessage("");
-    } catch {
+    } catch (error) {
+      if (isUnauthorizedError(error)) {
+        clearSession("Tu sesión expiró. Inicia sesión nuevamente.");
+        return;
+      }
+
       setProducts(fallbackProducts);
-      setSelectedProduct(fallbackProducts[0]);
+      setSelectedProduct(fallbackProducts[0] ?? null);
       setCart(normalizeCart(fallbackCart));
       setLastOrder(null);
       setOrderHistory([]);
       setUsesFallback(true);
       setMessage("Se activó el modo local de prueba porque el backend no respondió.");
     }
-  }, [refreshOrderHistory]);
+  }, [authToken, clearSession, fetchWithAuth, refreshOrderHistory]);
 
   useEffect(() => {
+    if (!authToken || !currentUser) {
+      setProducts([]);
+      setSelectedProduct(null);
+      setCart(EMPTY_CART);
+      setOrderHistory([]);
+      setLastOrder(null);
+      setUsesFallback(false);
+      return;
+    }
+
     loadInitialData();
-  }, [loadInitialData]);
+  }, [authToken, currentUser, loadInitialData]);
 
   const filteredProducts = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -218,6 +343,55 @@ function App() {
     return cart.total - descuento;
   }, [cart.total, promocionAplicada]);
 
+  async function handleLogin(event) {
+    event.preventDefault();
+
+    if (!loginForm.username.trim() || !loginForm.password.trim()) {
+      setMessage("Ingresa usuario y contraseña.");
+      return;
+    }
+
+    setLoadingLogin(true);
+
+    try {
+      const response = await fetch(`${API_URL}/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: loginForm.username.trim(),
+          password: loginForm.password,
+        }),
+      });
+
+      if (!response.ok) {
+        throw await buildApiError(response, "No fue posible iniciar sesión.");
+      }
+
+      const data = await response.json();
+      if (!data?.token || !data?.role || !data?.username) {
+        throw new Error("La respuesta de autenticación es inválida.");
+      }
+
+      setAuthToken(data.token);
+      setCurrentUser({
+        username: data.username,
+        role: data.role,
+      });
+      setLoginForm({ username: "", password: "" });
+      setMessage("");
+    } catch (error) {
+      handleApiError(error, "No fue posible iniciar sesión.");
+    } finally {
+      setLoadingLogin(false);
+    }
+  }
+
+  function handleLogout() {
+    clearSession("Sesión cerrada.");
+  }
+
   async function handleSelectProduct(productId) {
     setLoadingDetail(true);
     try {
@@ -225,7 +399,7 @@ function App() {
         const localProduct = products.find((product) => product.id === productId);
         setSelectedProduct(localProduct ?? null);
       } else {
-        const response = await fetch(`${API_URL}/products/${productId}`);
+        const response = await fetchWithAuth(`/products/${productId}`);
         if (!response.ok) {
           throw await buildApiError(response, "No fue posible consultar el detalle del producto.");
         }
@@ -234,11 +408,15 @@ function App() {
       }
       setIsDetailOpen(true);
       setMessage("");
-    } catch {
-      const localProduct = products.find((product) => product.id === productId);
-      setSelectedProduct(localProduct ?? null);
-      setIsDetailOpen(Boolean(localProduct));
-      setMessage("Se mostró el detalle local porque hubo un problema con la consulta.");
+    } catch (error) {
+      if (usesFallback) {
+        const localProduct = products.find((product) => product.id === productId);
+        setSelectedProduct(localProduct ?? null);
+        setIsDetailOpen(Boolean(localProduct));
+        setMessage("Se mostró el detalle local porque hubo un problema con la consulta.");
+      } else {
+        handleApiError(error, "No fue posible consultar el detalle del producto.");
+      }
     } finally {
       setLoadingDetail(false);
     }
@@ -250,7 +428,7 @@ function App() {
         const updatedCart = buildLocalCartAfterAdd(cart, products, productId);
         setCart(updatedCart);
       } else {
-        const response = await fetch(`${API_URL}/cart/${productId}`, {
+        const response = await fetchWithAuth(`/cart/${productId}`, {
           method: "POST",
         });
         if (!response.ok) {
@@ -263,7 +441,7 @@ function App() {
       setIsCartOpen(true);
       setMessage("Producto agregado al carrito.");
     } catch (error) {
-      setMessage(error.message);
+      handleApiError(error, "No fue posible agregar el producto al carrito.");
     }
   }
 
@@ -272,7 +450,7 @@ function App() {
       if (usesFallback) {
         setCart(buildLocalCartAfterUpdate(cart, nextQuantity, productId));
       } else {
-        const response = await fetch(`${API_URL}/cart/${productId}`, {
+        const response = await fetchWithAuth(`/cart/${productId}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
@@ -289,7 +467,7 @@ function App() {
       }
       setMessage("Cantidad actualizada correctamente.");
     } catch (error) {
-      setMessage(error.message);
+      handleApiError(error, "No fue posible actualizar la cantidad.");
     }
   }
 
@@ -298,7 +476,7 @@ function App() {
       if (usesFallback) {
         setCart(buildLocalCartAfterDelete(cart, productId));
       } else {
-        const response = await fetch(`${API_URL}/cart/${productId}`, {
+        const response = await fetchWithAuth(`/cart/${productId}`, {
           method: "DELETE",
         });
 
@@ -311,7 +489,7 @@ function App() {
       }
       setMessage("Producto eliminado del carrito.");
     } catch (error) {
-      setMessage(error.message);
+      handleApiError(error, "No fue posible eliminar el producto del carrito.");
     }
   }
 
@@ -328,9 +506,9 @@ function App() {
         const fallbackOrder = buildLocalOrderFromCart(cart);
         setLastOrder(fallbackOrder);
         setOrderHistory((current) => [fallbackOrder, ...current]);
-        setCart({ items: [], total: 0, totalItems: 0 });
+        setCart(EMPTY_CART);
       } else {
-        const checkoutResponse = await fetch(`${API_URL}/orders/checkout`, {
+        const checkoutResponse = await fetchWithAuth("/orders/checkout", {
           method: "POST",
         });
 
@@ -341,30 +519,33 @@ function App() {
         const checkoutOrder = normalizeOrder(await checkoutResponse.json());
         let confirmedOrder = checkoutOrder;
 
-        const confirmedResponse = await fetch(`${API_URL}/orders/${checkoutOrder.id}`);
+        const confirmedResponse = await fetchWithAuth(`/orders/${checkoutOrder.id}`);
         if (confirmedResponse.ok) {
           confirmedOrder = normalizeOrder(await confirmedResponse.json());
         }
 
-        const cartResponse = await fetch(`${API_URL}/cart`);
+        const cartResponse = await fetchWithAuth("/cart");
         if (cartResponse.ok) {
           setCart(normalizeCart(await cartResponse.json()));
         } else {
-          setCart({ items: [], total: 0, totalItems: 0 });
+          setCart(EMPTY_CART);
         }
 
         setLastOrder(confirmedOrder);
         try {
           await refreshOrderHistory();
         } catch {
-          setOrderHistory((current) => [confirmedOrder, ...current.filter((order) => order.id !== confirmedOrder.id)]);
+          setOrderHistory((current) => [
+            confirmedOrder,
+            ...current.filter((order) => order.id !== confirmedOrder.id),
+          ]);
         }
       }
 
       setMessage("Compra confirmada. Orden generada y carrito limpiado.");
       setIsCartOpen(true);
     } catch (error) {
-      setMessage(error.message);
+      handleApiError(error, "No fue posible confirmar la compra.");
     } finally {
       setLoadingCheckout(false);
     }
@@ -377,19 +558,119 @@ function App() {
     }
 
     try {
-      const response = await fetch(`${API_URL}/promociones/${codigoPromocion.trim()}`);
+      const response = await fetchWithAuth(`/promociones/${codigoPromocion.trim()}`);
       if (!response.ok) {
-        const error = await response.json();
-        setMessage(error.message ?? "Código de promoción no válido.");
-        return;
+        throw await buildApiError(response, "Código de promoción no válido.");
       }
 
       const promo = await response.json();
       setPromocionAplicada(promo);
       setMessage(`Promoción aplicada: ${promo.valor}% de descuento.`);
-    } catch {
-      setMessage("No se pudo validar el código de promoción.");
+    } catch (error) {
+      handleApiError(error, "No se pudo validar el código de promoción.");
     }
+  }
+
+  async function handleCrearPromocion(event) {
+    event.preventDefault();
+
+    if (!isAdmin) {
+      setMessage("Solo el administrador puede crear promociones.");
+      return;
+    }
+
+    if (!promoForm.codigo.trim() || !promoForm.valor || !promoForm.fechaInicio || !promoForm.fechaFin) {
+      setMessage("Completa código, valor y rango de fechas.");
+      return;
+    }
+
+    setCreatingPromo(true);
+
+    try {
+      const payload = {
+        codigo: promoForm.codigo.trim(),
+        descripcion: promoForm.descripcion.trim(),
+        valor: Number(promoForm.valor),
+        fechaInicio: promoForm.fechaInicio,
+        fechaFin: promoForm.fechaFin,
+        usoMaximo: promoForm.usoMaximo ? Number(promoForm.usoMaximo) : null,
+      };
+
+      const response = await fetchWithAuth("/promociones", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw await buildApiError(response, "No fue posible crear la promoción.");
+      }
+
+      const promoCreada = await response.json();
+      setPromoForm({
+        codigo: "",
+        descripcion: "",
+        valor: "",
+        fechaInicio: getTodayInputDate(),
+        fechaFin: getTodayInputDate(),
+        usoMaximo: "",
+      });
+      setMessage(`Promoción ${promoCreada.codigo} creada correctamente.`);
+    } catch (error) {
+      handleApiError(error, "No fue posible crear la promoción.");
+    } finally {
+      setCreatingPromo(false);
+    }
+  }
+
+  if (!authToken || !currentUser) {
+    return (
+      <div className="auth-layout">
+        <section className="auth-card" aria-label="Inicio de sesión">
+          <p className="encabezado__ceja">Mini E-Commerce</p>
+          <h1 className="encabezado__titulo">Inicio de sesión</h1>
+          <p className="encabezado__subtitulo">
+            Accede al sistema con rol de administrador o usuario.
+          </p>
+
+          <form className="auth-form" onSubmit={handleLogin}>
+            <label htmlFor="username">Usuario</label>
+            <input
+              id="username"
+              name="username"
+              type="text"
+              autoComplete="username"
+              value={loginForm.username}
+              onChange={(event) =>
+                setLoginForm((current) => ({ ...current, username: event.target.value }))
+              }
+              placeholder="admin o usuario"
+            />
+
+            <label htmlFor="password">Contraseña</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              value={loginForm.password}
+              onChange={(event) =>
+                setLoginForm((current) => ({ ...current, password: event.target.value }))
+              }
+              placeholder="••••••••"
+            />
+
+            <button type="submit" className="boton-principal" disabled={loadingLogin}>
+              {loadingLogin ? "Iniciando..." : "Iniciar sesión"}
+            </button>
+          </form>
+
+          {message && <p className="mensaje-sistema">{message}</p>}
+        </section>
+      </div>
+    );
   }
 
   return (
@@ -458,11 +739,103 @@ function App() {
                 </button>
               </div>
             </div>
+
+            <div className="sesion-panel">
+              <p className="sesion-panel__usuario">
+                {currentUser.username} · {ROLE_LABELS[currentUser.role] ?? currentUser.role}
+              </p>
+              <button type="button" className="boton-sesion" onClick={handleLogout}>
+                Cerrar sesión
+              </button>
+            </div>
           </section>
         </div>
       </header>
 
       <main className="distribucion distribucion--una-columna">
+        {isAdmin && (
+          <section className="admin-panel" aria-label="Panel de administrador">
+            <div className="admin-panel__encabezado">
+              <h2>Administrador</h2>
+              <p>Crea promociones para la tienda.</p>
+            </div>
+
+            <form className="admin-panel__form" onSubmit={handleCrearPromocion}>
+              <label htmlFor="promoCodigo">Código</label>
+              <input
+                id="promoCodigo"
+                name="promoCodigo"
+                type="text"
+                value={promoForm.codigo}
+                onChange={(event) => setPromoForm((current) => ({ ...current, codigo: event.target.value }))}
+                placeholder="VERANO20"
+              />
+
+              <label htmlFor="promoDescripcion">Descripción</label>
+              <input
+                id="promoDescripcion"
+                name="promoDescripcion"
+                type="text"
+                value={promoForm.descripcion}
+                onChange={(event) =>
+                  setPromoForm((current) => ({ ...current, descripcion: event.target.value }))
+                }
+                placeholder="20% en toda la tienda"
+              />
+
+              <label htmlFor="promoValor">Descuento (%)</label>
+              <input
+                id="promoValor"
+                name="promoValor"
+                type="number"
+                min="1"
+                max="100"
+                step="0.01"
+                value={promoForm.valor}
+                onChange={(event) => setPromoForm((current) => ({ ...current, valor: event.target.value }))}
+                placeholder="20"
+              />
+
+              <label htmlFor="promoFechaInicio">Fecha inicio</label>
+              <input
+                id="promoFechaInicio"
+                name="promoFechaInicio"
+                type="date"
+                value={promoForm.fechaInicio}
+                onChange={(event) =>
+                  setPromoForm((current) => ({ ...current, fechaInicio: event.target.value }))
+                }
+              />
+
+              <label htmlFor="promoFechaFin">Fecha fin</label>
+              <input
+                id="promoFechaFin"
+                name="promoFechaFin"
+                type="date"
+                value={promoForm.fechaFin}
+                onChange={(event) => setPromoForm((current) => ({ ...current, fechaFin: event.target.value }))}
+              />
+
+              <label htmlFor="promoUsoMaximo">Uso máximo (opcional)</label>
+              <input
+                id="promoUsoMaximo"
+                name="promoUsoMaximo"
+                type="number"
+                min="1"
+                value={promoForm.usoMaximo}
+                onChange={(event) =>
+                  setPromoForm((current) => ({ ...current, usoMaximo: event.target.value }))
+                }
+                placeholder="100"
+              />
+
+              <button type="submit" className="boton-principal" disabled={creatingPromo}>
+                {creatingPromo ? "Creando..." : "Crear promoción"}
+              </button>
+            </form>
+          </section>
+        )}
+
         <section className="catalogo" aria-label="Productos disponibles">
           <div className="catalogo__barra-superior">
             <h2>Productos Disponibles</h2>
@@ -641,7 +1014,7 @@ function App() {
             </button>
             {promocionAplicada && (
               <p className="carrito__descuento">
-                ✅ {promocionAplicada.descripcion} — {promocionAplicada.valor}% off
+                ✅ {promocionAplicada.descripcion} - {promocionAplicada.valor}% off
               </p>
             )}
           </div>
@@ -654,9 +1027,7 @@ function App() {
           {promocionAplicada && (
             <div className="carrito__resumen-fila">
               <span>Descuento ({promocionAplicada.valor}%)</span>
-              <strong style={{ color: "green" }}>
-                -{formatCurrency(cart.total - totalConDescuento)}
-              </strong>
+              <strong style={{ color: "green" }}>-{formatCurrency(cart.total - totalConDescuento)}</strong>
             </div>
           )}
 
@@ -689,7 +1060,9 @@ function App() {
                 <div key={item.productId} className="orden-confirmada__item">
                   <div>
                     <p>{item.name}</p>
-                    <small>{item.quantity} x {formatCurrency(item.price)}</small>
+                    <small>
+                      {item.quantity} x {formatCurrency(item.price)}
+                    </small>
                   </div>
                   <strong>{formatCurrency(item.subtotal)}</strong>
                 </div>
@@ -745,7 +1118,9 @@ function App() {
                   {order.items.map((item) => (
                     <div key={`${order.id}-${item.productId}`} className="compra-ticket__item">
                       <p>{item.name}</p>
-                      <small>{item.quantity} x {formatCurrency(item.price)}</small>
+                      <small>
+                        {item.quantity} x {formatCurrency(item.price)}
+                      </small>
                       <strong>{formatCurrency(item.subtotal)}</strong>
                     </div>
                   ))}
@@ -830,13 +1205,27 @@ async function buildApiError(response, fallbackMessage) {
   try {
     const responseData = await response.json();
     if (typeof responseData?.message === "string" && responseData.message.trim()) {
-      return new Error(responseData.message.trim());
+      return new Error(`${responseData.message.trim()}${statusSuffix}`);
     }
   } catch (error) {
     void error;
   }
 
   return new Error(`${fallbackMessage}${statusSuffix}`);
+}
+
+function isUnauthorizedError(error) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const normalized = error.message.toLowerCase();
+  return (
+    normalized.includes("http 401") ||
+    normalized.includes("http 403") ||
+    normalized.includes("no autorizado") ||
+    normalized.includes("no tienes permisos")
+  );
 }
 
 function buildLocalCartAfterAdd(currentCart, products, productId) {
@@ -914,6 +1303,47 @@ function summarizeLocalCart(items) {
   const total = items.reduce((acc, item) => acc + item.subtotal, 0);
   const totalItems = items.reduce((acc, item) => acc + item.quantity, 0);
   return { items, total, totalItems };
+}
+
+function getTodayInputDate() {
+  const date = new Date();
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 10);
+}
+
+function readStoredSession() {
+  if (typeof window === "undefined") {
+    return { token: "", user: null };
+  }
+
+  try {
+    const stored = window.localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!stored) {
+      return { token: "", user: null };
+    }
+
+    const parsed = JSON.parse(stored);
+    if (
+      typeof parsed?.token === "string" &&
+      typeof parsed?.username === "string" &&
+      typeof parsed?.role === "string" &&
+      parsed.token.trim() &&
+      parsed.username.trim() &&
+      parsed.role.trim()
+    ) {
+      return {
+        token: parsed.token,
+        user: {
+          username: parsed.username,
+          role: parsed.role,
+        },
+      };
+    }
+  } catch (error) {
+    void error;
+  }
+
+  return { token: "", user: null };
 }
 
 export default App;
